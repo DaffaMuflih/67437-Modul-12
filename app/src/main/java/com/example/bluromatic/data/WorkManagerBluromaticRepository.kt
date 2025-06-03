@@ -9,10 +9,11 @@ import com.example.bluromatic.workers.BlurWorker
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.UUID
-
+import com.example.bluromatic.getImageUri
 
 class WorkManagerBluromaticRepository(context: Context) : BluromaticRepository {
     private val workManager = WorkManager.getInstance(context)
+    private var imageUri: Uri = context.getImageUri()
 
     private val _outputWorkInfo = MutableStateFlow<WorkInfo?>(null)
     override val outputWorkInfo: Flow<WorkInfo?> = _outputWorkInfo
