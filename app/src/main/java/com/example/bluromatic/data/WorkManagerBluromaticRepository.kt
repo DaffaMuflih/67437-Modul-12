@@ -6,6 +6,8 @@ import androidx.work.*
 import com.example.bluromatic.KEY_BLUR_LEVEL
 import com.example.bluromatic.KEY_IMAGE_URI
 import com.example.bluromatic.workers.BlurWorker
+import com.example.bluromatic.workers.CleanupWorker
+import com.example.bluromatic.workers.SaveImageToFileWorker
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.UUID
@@ -21,16 +23,34 @@ class WorkManagerBluromaticRepository(context: Context) : BluromaticRepository {
     private var currentWorkId: UUID? = null
 
     override fun applyBlur(blurLevel: Int, imageUri: Uri) {
+        // Mulai dengan pekerjaan Cleanup
+        var continuation = workManager.beginWith(
+            OneTimeWorkRequest.from(CleanupWorker::class.java)
+        )
+
+        // Buat input data untuk BlurWorker
         val inputData = createInputDataForWorkRequest(blurLevel, imageUri)
         val blurRequest = OneTimeWorkRequestBuilder<BlurWorker>()
             .setInputData(inputData)
             .build()
 
-        currentWorkId = blurRequest.id
+        // Rangkaikan pekerjaan Blur setelah Cleanup
+        continuation = continuation.then(blurRequest)
 
-        workManager.enqueue(blurRequest)
+        // Buat pekerjaan SaveImageToFileWorker setelah Blur
+        val saveRequest = OneTimeWorkRequestBuilder<SaveImageToFileWorker>()
+            .build()
 
-        workManager.getWorkInfoByIdLiveData(blurRequest.id)
+        continuation = continuation.then(saveRequest)
+
+        // Enqueue seluruh rangkaian pekerjaan
+        continuation.enqueue()
+
+        // Simpan WorkRequest ID untuk monitoring & cancel
+        currentWorkId = saveRequest.id
+
+        // Pantau status pekerjaan terakhir (SaveImageToFileWorker)
+        workManager.getWorkInfoByIdLiveData(saveRequest.id)
             .observeForever { workInfo ->
                 _outputWorkInfo.value = workInfo
             }
